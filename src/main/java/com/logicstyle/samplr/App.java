@@ -1,4 +1,4 @@
-package com.logicstyle.insider;
+package com.logicstyle.samplr;
 
 import java.io.DataOutputStream;
 import java.io.File;
