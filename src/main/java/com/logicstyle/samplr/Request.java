@@ -20,6 +20,12 @@ public class Request {
     private long startTime;
     private long endTime;
     
+    
+   
+    private long sampleStartTime;
+    
+    
+    
     /**
      * The id of the thread associated with this request 
      **/
@@ -66,6 +72,26 @@ public class Request {
         this.threadId = threadId;
     }
 
+    public long getSampleStartTime() {
+        return sampleStartTime;
+    }
+
+    public void setSampleStartTime(long sampleStartTime) {
+        this.sampleStartTime = sampleStartTime;
+    }
+
+    
+    public boolean isSampling() {
+        return sampleStartTime>0;
+    }
+    
+    public boolean isFinished() {
+        
+        return endTime>0;
+    }
+    
+    
+    
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
