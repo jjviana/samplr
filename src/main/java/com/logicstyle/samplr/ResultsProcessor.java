@@ -8,7 +8,7 @@ import java.util.List;
  *
  * @author juliano
  */
-public interface  SamplrResultsProcessor {
+public interface  ResultsProcessor {
     
     /**
      * Processes the provided request results.

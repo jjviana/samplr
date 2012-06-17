@@ -72,18 +72,7 @@ public class Request {
         this.threadId = threadId;
     }
 
-    public long getSampleStartTime() {
-        return sampleStartTime;
-    }
-
-    public void setSampleStartTime(long sampleStartTime) {
-        this.sampleStartTime = sampleStartTime;
-    }
-
-    
-    public boolean isSampling() {
-        return sampleStartTime>0;
-    }
+   
     
     public boolean isFinished() {
         
