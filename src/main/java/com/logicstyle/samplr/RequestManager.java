@@ -79,6 +79,30 @@ public class RequestManager {
         public Request getRequest() {
            return request;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final DefaultRequestContext other = (DefaultRequestContext) obj;
+            if (this.request != other.request && (this.request == null || !this.request.equals(other.request))) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 37 * hash + (this.request != null ? this.request.hashCode() : 0);
+            return hash;
+        }
+        
+        
     }
 
     public RequestManager() {
