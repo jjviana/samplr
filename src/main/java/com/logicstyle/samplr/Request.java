@@ -32,9 +32,20 @@ public class Request {
      
     private long threadId;
     
-    public Request(long id,long threadId,long startTime) {
+    
+    
+    public Request() {
         
-        this.id=id;
+        assignRequestId();
+        threadId=Thread.currentThread().getId();
+        startTime=System.currentTimeMillis();
+        
+    }
+    
+    
+    public Request(long threadId,long startTime) {
+        
+        assignRequestId();
         this.threadId=threadId;
         this.startTime=startTime;
         
@@ -98,6 +109,12 @@ public class Request {
         int hash = 7;
         hash = 17 * hash + (int) (this.id ^ (this.id >>> 32));
         return hash;
+    }
+
+    private static long requestIdCounter;
+    
+    private synchronized void assignRequestId() {
+        id=requestIdCounter++;
     }
     
     

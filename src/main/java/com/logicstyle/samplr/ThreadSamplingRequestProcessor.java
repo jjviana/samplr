@@ -24,10 +24,10 @@ import org.openide.util.Exceptions;
  *
  * @author juliano
  */
-public class ThreadSamplingRequestProcessor extends RequestProcessor {
+public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSamplingRequestProcessor> {
 
-    private Map<RequestContext,SamplingRequestContext> ongoingRequests;
-    private Map<RequestContext,SamplingRequestContext> samplingRequests;
+    private Map<RequestContext, SamplingRequestContext> ongoingRequests;
+    private Map<RequestContext, SamplingRequestContext> samplingRequests;
     private Map<Long, StackTraceSnapshotBuilder> snapshotBuilders;
     ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
     private long requestLengthSamplingThreshold;
@@ -40,11 +40,15 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
         this.requestLengthSamplingThreshold = requestLengthSamplingThreshold;
     }
 
+    public ThreadSamplingRequestProcessor withRequestLengthSamplingThreshold(long requestLengthThreshold) {
+        setRequestLengthSamplingThreshold(requestLengthThreshold);
+        return this;
+    }
+
     public class SamplingRequestContext {
 
         private RequestContext requestContext;
         private StackTraceSnapshotBuilder snapshotBuilder;
-        
         private long sampleStartTime;
         private long sampleEndTime;
 
@@ -88,7 +92,6 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
             this.snapshotBuilder = snapshotBuilder;
         }
 
-        
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {
@@ -110,9 +113,6 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
             hash = 53 * hash + (this.requestContext != null ? this.requestContext.hashCode() : 0);
             return hash;
         }
-        
-        
-        
     }
 
     public ThreadSamplingRequestProcessor() {
@@ -122,6 +122,9 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
         samplingThread = new SamplingThread();
         samplrMonitorThread = new SamplrMonitorThread();
 
+        samplingThread.start();
+        samplrMonitorThread.start();
+
     }
 
     public void startMeasuring(RequestContext context) {
@@ -129,61 +132,61 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
     }
 
     public void stopMeasuring(RequestContext context) {
-        
-        SamplingRequestContext samplingContext=ongoingRequests.get(context);
-        if(samplingContext==null)
+
+        SamplingRequestContext samplingContext = ongoingRequests.get(context);
+        if (samplingContext == null) {
             return; // not monitoring this request
-        
-        
-        if(samplingContext.isSampling()) {
+        }
+
+        if (samplingContext.isSampling()) {
             try {
                 samplingRequests.remove(context);
                 samplingContext.setSampleEndTime(System.currentTimeMillis());
-                StackTraceSnapshotBuilder snapshotBuilder=snapshotBuilders.get(context.getRequest().getThreadId());
+                StackTraceSnapshotBuilder snapshotBuilder = snapshotBuilders.get(context.getRequest().getThreadId());
                 snapshotBuilders.remove(context.getRequest().getThreadId());
                 CPUResultsSnapshot snapshot;
                 try {
                     snapshot = snapshotBuilder.createSnapshot(System.currentTimeMillis());
                 } catch (NoDataAvailableException ex) {
-                   throw new RuntimeException(ex);
+                    throw new RuntimeException(ex);
                 }
 
                 LoadedSnapshot ls = new LoadedSnapshot(snapshot, ProfilingSettingsPresets.createCPUPreset(), null, null);
-                ByteArrayOutputStream bout=new ByteArrayOutputStream();
-                DataOutputStream out=new DataOutputStream(bout);
+                ByteArrayOutputStream bout = new ByteArrayOutputStream();
+                DataOutputStream out = new DataOutputStream(bout);
                 ls.save(out);
                 out.flush();
-                
-                ResultFile samplingFile=new ResultFile();
-                
+
+                ResultFile samplingFile = new ResultFile();
+
                 samplingFile.setName("request-sampling.nps");
                 samplingFile.setContent(new ByteArrayInputStream(bout.toByteArray()));
-                
-                bout=new ByteArrayOutputStream();
-                PrintWriter pw=new PrintWriter(new OutputStreamWriter(bout));
-                pw.println("Sampling start time: "+new Date(samplingContext.getSampleStartTime()));
-                pw.println("Sampling end time: "+new Date(samplingContext.getSampleEndTime()));
+
+                bout = new ByteArrayOutputStream();
+                PrintWriter pw = new PrintWriter(new OutputStreamWriter(bout));
+                pw.println("Sampling start time: " + new Date(samplingContext.getSampleStartTime()));
+                pw.println("Sampling end time: " + new Date(samplingContext.getSampleEndTime()));
                 pw.flush();
-                
-                ResultFile infoFile=new ResultFile();
+
+                ResultFile infoFile = new ResultFile();
                 infoFile.setName("sampling-info.txt");
                 infoFile.setContent(new ByteArrayInputStream(bout.toByteArray()));
-                
-                context.measurementFinished(context.getRequest(), this, Arrays.asList(new ResultFile[] {samplingFile,infoFile}));
-                
-                
+
+                context.measurementFinished(context.getRequest(), this, Arrays.asList(new ResultFile[]{samplingFile, infoFile}));
+
+
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
-            } 
-            
-            
-            
+            }
+
+
+
         }
-        
+
         ongoingRequests.remove(context);
-        
-        
-        
+
+
+
     }
 
     class SamplrMonitorThread extends Thread {
@@ -221,7 +224,7 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
         SamplingRequestContext samplingContext = new SamplingRequestContext(request);
 
 
-        ongoingRequests.put(request,samplingContext);
+        ongoingRequests.put(request, samplingContext);
 
         checkShouldSample(samplingContext); // In case sampling for this case of request should begin immediately
 
@@ -290,10 +293,13 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
 
                 ThreadInfo[] ti = mxBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
 
-                for (ThreadInfo t : ti) {
+                if (ti != null) {
+                    for (ThreadInfo t : ti) {
 
-                    StackTraceSnapshotBuilder builder = snapshotBuilders.get(t.getThreadId());
-                    builder.addStacktrace(new ThreadInfo[]{t}, System.nanoTime());
+                        StackTraceSnapshotBuilder builder = snapshotBuilders.get(t.getThreadId());
+                        if(builder!=null) // builder is null if thread has finished
+                             builder.addStacktrace(new ThreadInfo[]{t}, System.nanoTime());
+                    }
                 }
 
             }
@@ -308,11 +314,9 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor {
 
     void startSampling(SamplingRequestContext context) {
 
-        samplingRequests.put(context.getRequestContext(),context);
+        samplingRequests.put(context.getRequestContext(), context);
         snapshotBuilders.put(context.getRequestContext().getRequest().getThreadId(), new StackTraceSnapshotBuilder());
         context.setSampleStartTime(System.currentTimeMillis());
         samplingThread.wakeUp();
     }
-
-   
 }

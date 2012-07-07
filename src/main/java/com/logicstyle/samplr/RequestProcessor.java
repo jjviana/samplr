@@ -9,12 +9,12 @@ import java.util.List;
  * and can contribute measurement results at the end of a request processing cycle.
  * @author juliano
  */
-public  abstract class RequestProcessor {
+public  abstract class RequestProcessor<T extends RequestProcessor> {
     
     private MeasuringCriteria measuringCriteria;
     
     public   boolean shouldMeasure(Request request) {
-        return measuringCriteria.shouldMeasure(request);
+        return measuringCriteria== null || measuringCriteria.shouldMeasure(request);
     }
     
     public  abstract void startMeasuring(RequestContext context);
@@ -29,6 +29,13 @@ public  abstract class RequestProcessor {
         this.measuringCriteria = measuringCriteria;
     }
     
+    
+    public T withMeasuringCriteria(MeasuringCriteria measuringCriteria) {
+        
+        setMeasuringCriteria(measuringCriteria);
+        
+        return (T) this;
+    }
     
     
 }

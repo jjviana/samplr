@@ -15,7 +15,7 @@ import org.openide.util.Exceptions;
  *
  * @author juliano
  */
-class ResultFile {
+public class ResultFile {
 
     private String name;
     /**

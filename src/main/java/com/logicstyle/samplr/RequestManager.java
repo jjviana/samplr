@@ -125,6 +125,7 @@ public class RequestManager {
 
     public void requestStarting(Request request) {
 
+        
         DefaultRequestContext ctx = new DefaultRequestContext(request);
 
         boolean measuring = false;
@@ -210,5 +211,22 @@ public class RequestManager {
             }
         }
 
+    }
+    
+    
+    
+    
+    public RequestManager withRequestProcessor(RequestProcessor processor) {
+        
+        requestProcessors.add(processor);
+        
+        return this;
+    }
+    
+    public RequestManager withResultsProcessor(ResultsProcessor processor) {
+        
+        resultsProcessors.add(processor);
+        return this;
+        
     }
 }
