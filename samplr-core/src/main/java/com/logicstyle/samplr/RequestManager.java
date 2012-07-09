@@ -37,6 +37,12 @@ public class RequestManager {
     private Map<Request, RequestContext> finishingRequests = new ConcurrentHashMap<Request, RequestContext>();
     private List<ResultsProcessor> resultsProcessors = new CopyOnWriteArrayList<ResultsProcessor>();
 
+    private void doShutDown() {
+       recordingExecutor.shutdown();
+       requestTimeoutExecutor.shutdown();
+       status = Status.STOPPED;
+    }
+
     public enum Status {
 
         RUNNING, SHUTTING_DOWN, STOPPED
@@ -127,9 +133,7 @@ public class RequestManager {
             finishingRequests.remove(request);
             if (status == Status.SHUTTING_DOWN) {
                 if (measuringRequests.isEmpty() && finishingRequests.isEmpty()) {
-                    recordingExecutor.shutdown();
-                    requestTimeoutExecutor.shutdown();
-                    status = Status.STOPPED;
+                    doShutDown();
                     shutdownLock.notifyAll();
                 }
             }
@@ -181,7 +185,9 @@ public class RequestManager {
         }
 
         if (measuring) {
-            measuringRequests.put(request, ctx);
+            synchronized(shutdownLock) {
+                measuringRequests.put(request, ctx);
+            }
         }
 
 
@@ -193,9 +199,12 @@ public class RequestManager {
         if (ctx == null) {
             return; // This request is not being tracked
         }
-        measuringRequests.remove(request);
         request.setEndTime(System.currentTimeMillis());
-        finishingRequests.put(request, ctx);
+        synchronized(shutdownLock) {
+            measuringRequests.remove(request);
+            finishingRequests.put(request, ctx);
+        }
+        
 
 
         for (RequestProcessor r : requestProcessors) {
@@ -278,6 +287,10 @@ public class RequestManager {
         }
 
         status = Status.SHUTTING_DOWN;
+        synchronized(shutdownLock) {
+            if(measuringRequests.isEmpty() && finishingRequests.isEmpty())
+                doShutDown();
+        }
 
 
 
