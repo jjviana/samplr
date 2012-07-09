@@ -8,16 +8,15 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 import org.netbeans.lib.profiler.common.ProfilingSettingsPresets;
 import org.netbeans.lib.profiler.results.cpu.CPUResultsSnapshot;
 import org.netbeans.lib.profiler.results.cpu.CPUResultsSnapshot.NoDataAvailableException;
 import org.netbeans.lib.profiler.results.cpu.StackTraceSnapshotBuilder;
 import org.netbeans.modules.profiler.LoadedSnapshot;
-import org.openide.util.Exceptions;
 
 /**
  * Profiler entry point.
@@ -30,6 +29,9 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
     private Map<RequestContext, SamplingRequestContext> samplingRequests;
     private Map<Long, StackTraceSnapshotBuilder> snapshotBuilders;
     ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
+    
+    
+    
     private long requestLengthSamplingThreshold;
 
     public long getRequestLengthSamplingThreshold() {
@@ -40,6 +42,12 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
         this.requestLengthSamplingThreshold = requestLengthSamplingThreshold;
     }
 
+    
+   
+    
+    
+    
+    
     public ThreadSamplingRequestProcessor withRequestLengthSamplingThreshold(long requestLengthThreshold) {
         setRequestLengthSamplingThreshold(requestLengthThreshold);
         return this;
@@ -207,6 +215,8 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
                     checkShouldSample(r);
 
                 }
+               
+                
                 try {
                     Thread.sleep(monitoringInterval);
                 } catch (InterruptedException ex) {
@@ -214,10 +224,12 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
 
             }
         }
+
+       
     }
     private SamplrMonitorThread samplrMonitorThread;
     private long monitoringInterval = 500;
-    private MeasuringCriteria samplingCriteria;
+    
 
     private void startMonitoring(RequestContext request) {
 
@@ -241,11 +253,15 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
 
 
     }
+    
+    
+     
+     
     private long samplingInterval = 20;
 
     class SamplingThread extends Thread {
 
-        private Object waitLock = new Object();
+        private final Object waitLock = new Object();
         private boolean keepRunning = true;
 
         public SamplingThread() {
@@ -265,7 +281,7 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
 
             while (keepRunning) {
 
-                if (ongoingRequests.isEmpty()) {
+                if (samplingRequests.isEmpty()) {
                     synchronized (waitLock) {
                         try {
                             waitLock.wait();
@@ -295,10 +311,13 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
 
                 if (ti != null) {
                     for (ThreadInfo t : ti) {
-
-                        StackTraceSnapshotBuilder builder = snapshotBuilders.get(t.getThreadId());
-                        if(builder!=null) // builder is null if thread has finished
-                             builder.addStacktrace(new ThreadInfo[]{t}, System.nanoTime());
+                        if (t != null) {
+                            StackTraceSnapshotBuilder builder = snapshotBuilders.get(t.getThreadId());
+                            if (builder != null) // builder is null if thread has finished
+                            {
+                                builder.addStacktrace(new ThreadInfo[]{t}, System.nanoTime());
+                            }
+                        }
                     }
                 }
 

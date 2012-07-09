@@ -13,6 +13,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.openide.util.Exceptions;
 
 /**
  * Manages requests, coordinating the work of Request Processors.
@@ -21,7 +22,7 @@ import java.util.logging.Logger;
  */
 public class RequestManager {
 
-    private static Logger logger = Logger.getLogger(RequestManager.class.getName());
+    private static final Logger logger = Logger.getLogger(RequestManager.class.getName());
     /**
      * Request timeout. Measurement will be interrupted after the request have
      * been processing for this amount of time (in milliseconds). Measurement
@@ -32,8 +33,15 @@ public class RequestManager {
     private List<RequestProcessor> requestProcessors;
     private ExecutorService recordingExecutor;
     private ScheduledExecutorService requestTimeoutExecutor;
-    private Map<Request,RequestContext> currentRequests = new ConcurrentHashMap<Request, RequestContext>();
+    private Map<Request, RequestContext> measuringRequests = new ConcurrentHashMap<Request, RequestContext>();
+    private Map<Request, RequestContext> finishingRequests = new ConcurrentHashMap<Request, RequestContext>();
     private List<ResultsProcessor> resultsProcessors = new CopyOnWriteArrayList<ResultsProcessor>();
+
+    public enum Status {
+
+        RUNNING, SHUTTING_DOWN, STOPPED
+    };
+    private Status status;
 
     public long getRequestTimeout() {
         return requestTimeout;
@@ -51,11 +59,19 @@ public class RequestManager {
         this.timeoutCheckInterval = timeoutCheckInterval;
     }
 
+    private void checkStarted() {
+        if (status != Status.RUNNING) {
+            throw new IllegalStateException("RequestManager is not started");
+        }
+
+    }
+
     class DefaultRequestContext implements RequestContext {
 
         private List<RequestProcessor> processors = new CopyOnWriteArrayList<RequestProcessor>();
         private Map<RequestProcessor, List<ResultFile>> resultsMap = new ConcurrentHashMap<RequestProcessor, List<ResultFile>>();
         private Request request;
+        private int finishedProcessors = 0;
 
         public DefaultRequestContext(Request req) {
             this.request = req;
@@ -65,19 +81,21 @@ public class RequestManager {
             processors.add(rp);
         }
 
-        public void measurementFinished(Request request, RequestProcessor processor, List<ResultFile> results) {
+        public synchronized void measurementFinished(Request request, RequestProcessor processor, List<ResultFile> results) {
             if (results != null) {
                 resultsMap.put(processor, results);
             }
+            finishedProcessors++;
 
-            if (resultsMap.size() == processors.size()) // Finished measuring this request - need to process the results now
-            {
+            if (finishedProcessors == processors.size() && !resultsMap.isEmpty()) {
                 recordResults(this);
+            } else {
+                terminateRequest(request);
             }
         }
 
         public Request getRequest() {
-           return request;
+            return request;
         }
 
         @Override
@@ -101,13 +119,30 @@ public class RequestManager {
             hash = 37 * hash + (this.request != null ? this.request.hashCode() : 0);
             return hash;
         }
-        
-        
+    }
+    private final Object shutdownLock = new Object();
+
+    private void terminateRequest(Request request) {
+        synchronized (shutdownLock) {
+            finishingRequests.remove(request);
+            if (status == Status.SHUTTING_DOWN) {
+                if (measuringRequests.isEmpty() && finishingRequests.isEmpty()) {
+                    recordingExecutor.shutdown();
+                    requestTimeoutExecutor.shutdown();
+                    status = Status.STOPPED;
+                    shutdownLock.notifyAll();
+                }
+            }
+        }
+
     }
 
     public RequestManager() {
+           requestProcessors = new ArrayList<RequestProcessor>();
+    }
 
-        requestProcessors = new ArrayList<RequestProcessor>();
+    public void start() {
+     
 
         recordingExecutor = Executors.newSingleThreadExecutor();
 
@@ -119,13 +154,14 @@ public class RequestManager {
                 checkRequestTimeout();
             }
         }, timeoutCheckInterval, timeoutCheckInterval, TimeUnit.MILLISECONDS);
-        
-        
+
+        status = Status.RUNNING;
     }
 
     public void requestStarting(Request request) {
 
-        
+        checkStarted();
+
         DefaultRequestContext ctx = new DefaultRequestContext(request);
 
         boolean measuring = false;
@@ -145,19 +181,23 @@ public class RequestManager {
         }
 
         if (measuring) {
-            currentRequests.put(request,ctx);
+            measuringRequests.put(request, ctx);
         }
 
 
     }
 
-    public void requestStopping(Request request) {
+    public void requestFinished(Request request) {
 
-        RequestContext ctx=currentRequests.get(request);
-        if(ctx==null)
+        RequestContext ctx = measuringRequests.get(request);
+        if (ctx == null) {
             return; // This request is not being tracked
-
+        }
+        measuringRequests.remove(request);
         request.setEndTime(System.currentTimeMillis());
+        finishingRequests.put(request, ctx);
+
+
         for (RequestProcessor r : requestProcessors) {
 
             try {
@@ -169,7 +209,7 @@ public class RequestManager {
 
         }
 
-        currentRequests.remove(request);
+
     }
 
     private void recordResults(final DefaultRequestContext context) {
@@ -193,6 +233,10 @@ public class RequestManager {
                     }
                 }
 
+                terminateRequest(context.getRequest());
+
+
+
             }
         });
 
@@ -202,31 +246,57 @@ public class RequestManager {
     private void checkRequestTimeout() {
 
         if (requestTimeout > 0) {
-            for (Request req : currentRequests.keySet()) {
-                if (!req.isFinished() &&( System.currentTimeMillis() - req.getStartTime() )> requestTimeout) {
-                    
-                    requestStopping(req);
-                    
+            for (Request req : measuringRequests.keySet()) {
+                if (!req.isFinished() && (System.currentTimeMillis() - req.getStartTime()) > requestTimeout) {
+
+                    requestFinished(req);
+
                 }
             }
         }
 
     }
-    
-    
-    
-    
+
     public RequestManager withRequestProcessor(RequestProcessor processor) {
-        
+
         requestProcessors.add(processor);
-        
+
         return this;
     }
-    
+
     public RequestManager withResultsProcessor(ResultsProcessor processor) {
-        
+
         resultsProcessors.add(processor);
         return this;
-        
+
+    }
+
+    public void shutdown() {
+
+        if (status != Status.RUNNING) {
+            return;
+        }
+
+        status = Status.SHUTTING_DOWN;
+
+
+
+    }
+
+    public Status awaitTermination(long timeout) {
+
+        synchronized (shutdownLock) {
+            if (status != Status.STOPPED) {
+
+                try {
+                    shutdownLock.wait(timeout);
+                } catch (InterruptedException e) {
+                }
+            }
+
+            return status;
+        }
+
+
     }
 }

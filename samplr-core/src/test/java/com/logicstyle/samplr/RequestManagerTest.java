@@ -116,7 +116,8 @@ public class RequestManagerTest
                 .withResultsProcessor(new FileResultsArchiver()
                                           .withOutputDirectory(new File("target/test-output")));
                 
-                
+           
+        requestManager.start();
     }
    
     @Test
@@ -137,8 +138,11 @@ public class RequestManagerTest
             ex.printStackTrace();
         }
         
-        requestManager.requestStopping(testRequest);
-        
+        requestManager.requestFinished(testRequest);
+        requestManager.shutdown();
+        requestManager.awaitTermination(30000);
+        File resultsFile=new File("target/test-output/0/request-sampling.nps");
+        assertTrue(resultsFile.exists());
         
         
         
