@@ -23,6 +23,23 @@ import org.openide.util.Exceptions;
 public class RequestManager {
 
     private static final Logger logger = Logger.getLogger(RequestManager.class.getName());
+
+    class FreezableHashMap<K, V> extends ConcurrentHashMap<K, V> {
+
+        private volatile boolean frozen;
+
+        @Override
+        public V put(K k, V v) {
+            if (frozen) {
+                throw new IllegalStateException("Map has been frozen - no new values can be put");
+            }
+            return super.put(k, v);
+        }
+
+        public void freeze() {
+            frozen = true;
+        }
+    }
     /**
      * Request timeout. Measurement will be interrupted after the request have
      * been processing for this amount of time (in milliseconds). Measurement
@@ -33,21 +50,21 @@ public class RequestManager {
     private List<RequestProcessor> requestProcessors;
     private ExecutorService recordingExecutor;
     private ScheduledExecutorService requestTimeoutExecutor;
-    private Map<Request, RequestContext> measuringRequests = new ConcurrentHashMap<Request, RequestContext>();
+    private FreezableHashMap<Request, RequestContext> measuringRequests = new FreezableHashMap<Request, RequestContext>();
     private Map<Request, RequestContext> finishingRequests = new ConcurrentHashMap<Request, RequestContext>();
     private List<ResultsProcessor> resultsProcessors = new CopyOnWriteArrayList<ResultsProcessor>();
 
     private void doShutDown() {
-       recordingExecutor.shutdown();
-       requestTimeoutExecutor.shutdown();
-       status = Status.STOPPED;
+        recordingExecutor.shutdown();
+        requestTimeoutExecutor.shutdown();
+        status = Status.STOPPED;
     }
 
     public enum Status {
 
         RUNNING, SHUTTING_DOWN, STOPPED
     };
-    private Status status;
+    private volatile Status status;
 
     public long getRequestTimeout() {
         return requestTimeout;
@@ -55,6 +72,11 @@ public class RequestManager {
 
     public void setRequestTimeout(long requestTimeout) {
         this.requestTimeout = requestTimeout;
+    }
+    
+    public RequestManager withRequestTimeout(long timeout) {
+        setRequestTimeout(timeout);
+        return this;
     }
 
     public long getTimeoutCheckInterval() {
@@ -142,11 +164,11 @@ public class RequestManager {
     }
 
     public RequestManager() {
-           requestProcessors = new ArrayList<RequestProcessor>();
+        requestProcessors = new ArrayList<RequestProcessor>();
     }
 
     public void start() {
-     
+
 
         recordingExecutor = Executors.newSingleThreadExecutor();
 
@@ -158,6 +180,7 @@ public class RequestManager {
                 checkRequestTimeout();
             }
         }, timeoutCheckInterval, timeoutCheckInterval, TimeUnit.MILLISECONDS);
+        
 
         status = Status.RUNNING;
     }
@@ -166,6 +189,7 @@ public class RequestManager {
 
         checkStarted();
 
+        request.setStartTime(System.currentTimeMillis());
         DefaultRequestContext ctx = new DefaultRequestContext(request);
 
         boolean measuring = false;
@@ -185,8 +209,23 @@ public class RequestManager {
         }
 
         if (measuring) {
-            synchronized(shutdownLock) {
-                measuringRequests.put(request, ctx);
+            synchronized (shutdownLock) {
+                try {
+                    measuringRequests.put(request, ctx);
+                } catch (IllegalStateException e) {
+                    for (RequestProcessor r : requestProcessors) {
+
+                        try {
+                            r.stopMeasuring(ctx);
+                        } catch (Exception e2) {
+                            logger.log(Level.SEVERE, "Exception stopping measurement with request processor " + r, e2);
+                        }
+
+                    }
+
+
+                    throw new IllegalStateException("RequestManager has been stopped");
+                }
             }
         }
 
@@ -200,11 +239,13 @@ public class RequestManager {
             return; // This request is not being tracked
         }
         request.setEndTime(System.currentTimeMillis());
-        synchronized(shutdownLock) {
-            measuringRequests.remove(request);
-            finishingRequests.put(request, ctx);
-        }
-        
+        // The order of the following statements is important to ensure
+        // a correct shutdown behaviour
+        finishingRequests.put(request, ctx);
+        measuringRequests.remove(request);
+
+
+
 
 
         for (RequestProcessor r : requestProcessors) {
@@ -287,9 +328,11 @@ public class RequestManager {
         }
 
         status = Status.SHUTTING_DOWN;
-        synchronized(shutdownLock) {
-            if(measuringRequests.isEmpty() && finishingRequests.isEmpty())
+        synchronized (shutdownLock) {
+            measuringRequests.freeze();
+            if (measuringRequests.isEmpty() && finishingRequests.isEmpty()) {
                 doShutDown();
+            }
         }
 
 

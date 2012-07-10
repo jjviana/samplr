@@ -5,6 +5,7 @@ import java.util.Random;
 import org.junit.Test;
 import static org.junit.Assert.*;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.openide.util.Exceptions;
 
 
@@ -18,11 +19,11 @@ public class RequestManagerTest
 {
 
 
-    private RequestManager requestManager;
     
     
     class TestProcessingThread extends Thread {
         private final int maxIterations;
+        private boolean keepRunning=true;
 
         public TestProcessingThread(int maxIterations) {
             super("Test Request Processing Thread");
@@ -34,7 +35,7 @@ public class RequestManagerTest
             
             Random random=new Random();
             
-            for(int i=0;i<maxIterations;i++) {
+            for(int i=0;i<maxIterations && keepRunning;i++) {
                 int randomInt=random.nextInt(10);
                 
                 switch (randomInt) {
@@ -56,6 +57,10 @@ public class RequestManagerTest
                 }
             }
             
+        }
+        
+        public void stopRunning() {
+            keepRunning=false;
         }
         
         
@@ -103,26 +108,58 @@ public class RequestManagerTest
         
     }
     
-    @Before
-    public void init() {
+    
+    @BeforeClass
+    public static void initOutputDirectory() {
         
+         File testOutputDir=new File("target/test-output");
+        if(testOutputDir.exists())
+           deleteDir(testOutputDir);
         
-        File testOutputDir=new File("target/test-output");
         testOutputDir.mkdir();
+            
+    }
+    
+    public RequestManager  initRequestManager(long requestTimeout) {
+        
+        
+        
+      
        
-        requestManager=new RequestManager()
+        RequestManager requestManager=new RequestManager()
                 .withRequestProcessor(new ThreadSamplingRequestProcessor()
                                            .withRequestLengthSamplingThreshold(5000))
                 .withResultsProcessor(new FileResultsArchiver()
-                                          .withOutputDirectory(new File("target/test-output")));
+                                          .withOutputDirectory(new File("target/test-output")))
+                .withRequestTimeout(requestTimeout);
                 
            
         requestManager.start();
+        return requestManager;
     }
    
+    private static boolean deleteDir(File dir) {
+        
+        if(dir.isDirectory()) {
+            String[] children=dir.list();
+            for(int i=0;i<children.length;i++) {
+                if(!children[i].equals(".") && !children[i].equals("..")) {
+                    boolean success=deleteDir(new File(dir,children[i]));
+                    if(!success)
+                        return false;
+                }
+            }
+            
+        }
+        
+        return dir.delete();
+        
+        
+    }
     @Test
     public void testRequestManager()
     {
+        RequestManager requestManager=initRequestManager(0);
         
         TestProcessingThread testThread=new TestProcessingThread(5);
         
@@ -141,9 +178,42 @@ public class RequestManagerTest
         requestManager.requestFinished(testRequest);
         requestManager.shutdown();
         requestManager.awaitTermination(30000);
-        File resultsFile=new File("target/test-output/0/request-sampling.nps");
+        File resultsFile=new File("target/test-output/"+testRequest.getId()+"/request-sampling.nps");
         assertTrue(resultsFile.exists());
         
+        
+        
+    }
+    
+    @Test
+    public void testRequestTimeout() {
+        
+        RequestManager requestManager=initRequestManager(15000);
+        
+        TestProcessingThread testThread=new TestProcessingThread(5000); // no way this will end in 15 seconds
+        
+        Request testRequest=new Request();
+        testRequest.setThreadId(testThread.getId());
+        
+        testThread.start();
+        
+        requestManager.requestStarting(testRequest);
+        try {
+            Thread.sleep(15000);
+        } catch (InterruptedException ex) {
+           
+        }
+        
+        requestManager.shutdown();
+        RequestManager.Status status=requestManager.awaitTermination(30000);
+        
+        testThread.stopRunning();
+        
+        assertEquals(RequestManager.Status.STOPPED,status);
+        
+        
+        File resultsFile=new File("target/test-output/"+testRequest.getId()+"/request-sampling.nps");
+        assertTrue(resultsFile.exists());
         
         
     }

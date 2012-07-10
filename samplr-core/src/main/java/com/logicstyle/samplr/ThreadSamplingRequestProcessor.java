@@ -303,6 +303,16 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
                         }
                     }
                 }
+                if(i==0)
+                    continue;
+                
+                if(i<threadIds.length) {
+                    // Unlikely, but thread can have been terminated between size() and values()
+                    long[] tmp=threadIds;
+                    threadIds=new long[i];
+                    for(int j=0;j<i;j++)
+                        threadIds[j]=tmp[i];
+                }
 
 
 
