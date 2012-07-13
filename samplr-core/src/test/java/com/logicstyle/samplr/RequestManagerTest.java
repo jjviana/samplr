@@ -1,6 +1,9 @@
 package com.logicstyle.samplr;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -108,6 +111,20 @@ public class RequestManagerTest
         
     }
     
+    class TestRequest extends Request implements RequestInfoProvider {
+
+        public List<ResultFile> getRequestFiles() {
+           
+            ResultFile rs=new ResultFile();
+            rs.setName("test-file.txt");
+            rs.setContent(new ByteArrayInputStream("This is a test string\n".getBytes()));
+            return Collections.singletonList(rs);
+            
+            
+        }
+        
+    }
+    
     
     @BeforeClass
     public static void initOutputDirectory() {
@@ -116,7 +133,7 @@ public class RequestManagerTest
         if(testOutputDir.exists())
            deleteDir(testOutputDir);
         
-        testOutputDir.mkdir();
+        //testOutputDir.mkdir();
             
     }
     
@@ -129,6 +146,7 @@ public class RequestManagerTest
         RequestManager requestManager=new RequestManager()
                 .withRequestProcessor(new ThreadSamplingRequestProcessor()
                                            .withRequestLengthSamplingThreshold(5000))
+                .withRequestProcessor(new RequestRecorderRequestProcessor())
                 .withResultsProcessor(new FileResultsArchiver()
                                           .withOutputDirectory(new File("target/test-output")))
                 .withRequestTimeout(requestTimeout);
@@ -192,7 +210,7 @@ public class RequestManagerTest
         
         TestProcessingThread testThread=new TestProcessingThread(5000); // no way this will end in 15 seconds
         
-        Request testRequest=new Request();
+        Request testRequest=new TestRequest();
         testRequest.setThreadId(testThread.getId());
         
         testThread.start();

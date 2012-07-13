@@ -55,6 +55,7 @@ public class RequestManager {
     private List<ResultsProcessor> resultsProcessors = new CopyOnWriteArrayList<ResultsProcessor>();
 
     private void doShutDown() {
+      
         recordingExecutor.shutdown();
         requestTimeoutExecutor.shutdown();
         status = Status.STOPPED;
@@ -99,7 +100,7 @@ public class RequestManager {
         private List<RequestProcessor> processors = new CopyOnWriteArrayList<RequestProcessor>();
         private Map<RequestProcessor, List<ResultFile>> resultsMap = new ConcurrentHashMap<RequestProcessor, List<ResultFile>>();
         private Request request;
-        private int finishedProcessors = 0;
+        private transient int finishedProcessors = 0;
 
         public DefaultRequestContext(Request req) {
             this.request = req;
@@ -115,10 +116,11 @@ public class RequestManager {
             }
             finishedProcessors++;
 
-            if (finishedProcessors == processors.size() && !resultsMap.isEmpty()) {
-                recordResults(this);
-            } else {
-                terminateRequest(request);
+            if (finishedProcessors == processors.size()) {
+                if(!resultsMap.isEmpty())
+                         recordResults(this);
+                else
+                    terminateRequest(request);
             }
         }
 

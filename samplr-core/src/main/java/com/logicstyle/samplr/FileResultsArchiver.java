@@ -17,8 +17,8 @@ public class FileResultsArchiver implements ResultsProcessor {
 
         File resultsDir = new File(outputDirectory, String.valueOf(request.getId()));
 
-        if (!resultsDir.mkdir()) {
-            throw new RuntimeException("Cannot create diretory to putput results: " + resultsDir.getAbsolutePath());
+        if (!resultsDir.mkdirs()) {
+            throw new RuntimeException("Cannot create diretory to output results: " + resultsDir.getAbsolutePath());
         }
 
         try {
@@ -39,9 +39,7 @@ public class FileResultsArchiver implements ResultsProcessor {
     }
 
     public void setOutputDirectory(File outputDirectory) {
-        if (!outputDirectory.isDirectory()) {
-            throw new IllegalArgumentException("Output file is not a directory: " + outputDirectory);
-        }
+        
 
         this.outputDirectory = outputDirectory;
     }

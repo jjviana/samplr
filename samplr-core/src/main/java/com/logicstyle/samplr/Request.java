@@ -1,6 +1,8 @@
 
 package com.logicstyle.samplr;
 
+import java.util.Date;
+
 /**
  * Contains basic information about a Request.
  * A Request is any work being performed by a thread that can be of interest
@@ -22,7 +24,7 @@ public class Request {
     
     
    
-    private long sampleStartTime;
+    
     
     
     
@@ -116,6 +118,32 @@ public class Request {
     private synchronized void assignRequestId() {
         id=requestIdCounter++;
     }
+
+    @Override
+    public String toString() {
+        
+        StringBuffer sb=new StringBuffer();
+        sb.append("Request: ");
+        sb.append(getId());
+        sb.append("\n");
+        sb.append("Start Time: ");
+        sb.append(new Date(startTime));
+        sb.append("\n");
+        sb.append("End time: ");
+        if(endTime!=0)
+            sb.append(new Date(endTime));
+        else
+            sb.append("not available");
+        
+        sb.append("\n");
+        sb.append("Thread id: ");
+        sb.append(threadId);
+        sb.append("\n");
+        
+        return sb.toString();
+        
+    }
+    
     
     
     
