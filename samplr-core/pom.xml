@@ -77,7 +77,22 @@
                  </excludes>
               </filter>
               
-            </filters>      
+              <filter>
+                 <artifact>org.netbeans.api:org-openide-util</artifact>
+                 <includes>
+                     <include>**</include>
+                 </includes>
+              </filter>
+              <filter>
+                 <artifact>org.netbeans.api:org-openide-util-lookup</artifact>
+                 <includes>
+                     <include>**</include>
+                 </includes>
+              </filter>
+            </filters>   
+              
+               
+            <!--
              <relocations>
                 <relocation>
                   <pattern>org.netbeans</pattern>
@@ -91,6 +106,7 @@
                   
                 </relocation>
               </relocations>
+              -->
               <minimizeJar>true</minimizeJar>
             </configuration>
           </execution>
