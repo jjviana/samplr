@@ -137,7 +137,7 @@ public class RequestManagerTest
             
     }
     
-    public RequestManager  initRequestManager(long requestTimeout) {
+    public RequestManager  initRequestManager(long requestTimeout,long samplingThreshold) {
         
         
         
@@ -145,7 +145,7 @@ public class RequestManagerTest
        
         RequestManager requestManager=new RequestManager()
                 .withRequestProcessor(new ThreadSamplingRequestProcessor()
-                                           .withRequestLengthSamplingThreshold(5000))
+                                           .withRequestLengthSamplingThreshold(samplingThreshold))
                 .withRequestProcessor(new RequestRecorderRequestProcessor())
                 .withResultsProcessor(new FileResultsArchiver()
                                           .withOutputDirectory(new File("target/test-output")))
@@ -177,7 +177,7 @@ public class RequestManagerTest
     @Test
     public void testRequestManager()
     {
-        RequestManager requestManager=initRequestManager(0);
+        RequestManager requestManager=initRequestManager(0,5000);
         
         TestProcessingThread testThread=new TestProcessingThread(5);
         
@@ -206,7 +206,7 @@ public class RequestManagerTest
     @Test
     public void testRequestTimeout() {
         
-        RequestManager requestManager=initRequestManager(15000);
+        RequestManager requestManager=initRequestManager(15000,5000);
         
         TestProcessingThread testThread=new TestProcessingThread(5000); // no way this will end in 15 seconds
         
@@ -233,6 +233,71 @@ public class RequestManagerTest
         File resultsFile=new File("target/test-output/"+testRequest.getId()+"/request-sampling.nps");
         assertTrue(resultsFile.exists());
         
+        
+    }
+    
+    @Test
+    public void testRequestManagerSomeProcessorsDoNotReturnResults() throws Exception {
+        
+        RequestManager requestManager=initRequestManager(150000,100000); 
+        
+       
+        
+        TestProcessingThread testThread=new TestProcessingThread(2); // this will end much sooner
+        
+        Request testRequest=new TestRequest();
+        testRequest.setThreadId(testThread.getId());
+        
+        testThread.start();
+        
+        requestManager.requestStarting(testRequest);
+         try {
+            Thread.sleep(15000);
+        } catch (InterruptedException ex) {
+           
+        }
+         requestManager.requestFinished(testRequest);
+         
+        
+        requestManager.shutdown();
+        RequestManager.Status status=requestManager.awaitTermination(30000);
+        
+        testThread.stopRunning();
+        
+        assertEquals(RequestManager.Status.STOPPED,status);
+        
+        File resultsFile=new File("target/test-output/"+testRequest.getId()+"/request.txt");
+        assertTrue(resultsFile.exists());
+        resultsFile=new File("target/test-output/"+testRequest.getId()+"/request-sampling.nps");
+        assertFalse(resultsFile.exists());
+    }
+    
+    @Test
+    public void testRequestManagerRequestTimeResultsFilter() throws Exception {
+        RequestManager requestManager=initRequestManager(0,5000);
+         for (RequestProcessor rp: requestManager.getRequestProcessors()) {
+            rp.setResultsFilter(new RequestTimeResultsFilter(600000l));
+            
+        }
+        TestProcessingThread testThread=new TestProcessingThread(5);
+        
+        Request testRequest=new Request();
+        testRequest.setThreadId(testThread.getId());
+        
+        testThread.start();
+        
+        requestManager.requestStarting(testRequest);
+        try {
+            testThread.join();
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
+        }
+        
+        requestManager.requestFinished(testRequest);
+        requestManager.shutdown();
+        requestManager.awaitTermination(30000);
+        File outputDir=new File("target/test-output/"+testRequest.getId());
+        assertFalse(outputDir.exists());
         
     }
 }

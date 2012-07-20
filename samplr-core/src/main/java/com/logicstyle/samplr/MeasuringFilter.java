@@ -6,7 +6,7 @@ package com.logicstyle.samplr;
  * Called periodically for the ongoing requests.
  * @author juliano
  */
-public interface MeasuringCriteria {
+public interface MeasuringFilter {
     
     /**
      * Returns true if the specified request should be measured.

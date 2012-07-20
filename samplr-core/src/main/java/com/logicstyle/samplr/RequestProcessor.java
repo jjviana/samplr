@@ -11,31 +11,50 @@ import java.util.List;
  */
 public  abstract class RequestProcessor<T extends RequestProcessor> {
     
-    private MeasuringCriteria measuringCriteria;
+    private MeasuringFilter measuringFilter;
+    
+    private ResultsFilter resultsFilter;
+    
     
     public   boolean shouldMeasure(Request request) {
-        return measuringCriteria== null || measuringCriteria.shouldMeasure(request);
+        return measuringFilter== null || measuringFilter.shouldMeasure(request);
     }
     
     public  abstract void startMeasuring(RequestContext context);
     
     public  abstract void stopMeasuring(RequestContext request);
 
-    public MeasuringCriteria getMeasuringCriteria() {
-        return measuringCriteria;
+    public MeasuringFilter getMeasuringFilter() {
+        return measuringFilter;
     }
 
-    public void setMeasuringCriteria(MeasuringCriteria measuringCriteria) {
-        this.measuringCriteria = measuringCriteria;
+    public void setMeasuringFilter(MeasuringFilter measuringCriteria) {
+        this.measuringFilter = measuringCriteria;
     }
     
     
-    public T withMeasuringCriteria(MeasuringCriteria measuringCriteria) {
+    public T withMeasuringFilter(MeasuringFilter measuringCriteria) {
         
-        setMeasuringCriteria(measuringCriteria);
+        setMeasuringFilter(measuringCriteria);
         
         return (T) this;
     }
+
+    public ResultsFilter getResultsFilter() {
+        return resultsFilter;
+    }
+
+    public void setResultsFilter(ResultsFilter resultsFilter) {
+        this.resultsFilter = resultsFilter;
+    }
     
+    public T withResultsFilter(ResultsFilter rf) {
+        setResultsFilter(rf);
+        return (T)this;
+    }
+
+    boolean shouldRecord(Request request,List<ResultFile> results) {
+        return (resultsFilter==null || resultsFilter.shouldRecord(request, results));
+    }
     
 }

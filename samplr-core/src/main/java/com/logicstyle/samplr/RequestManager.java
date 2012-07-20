@@ -110,14 +110,18 @@ public class RequestManager {
             processors.add(rp);
         }
 
+        
+        
+        
+
         public synchronized void measurementFinished(Request request, RequestProcessor processor, List<ResultFile> results) {
-            if (results != null) {
+            if (results != null && !results.isEmpty() && processor.shouldRecord(request,results)) {
                 resultsMap.put(processor, results);
             }
             finishedProcessors++;
 
             if (finishedProcessors == processors.size()) {
-                if(!resultsMap.isEmpty())
+                if(!resultsMap.isEmpty() )
                          recordResults(this);
                 else
                     terminateRequest(request);
@@ -356,5 +360,9 @@ public class RequestManager {
         }
 
 
+    }
+    
+    public List<RequestProcessor> getRequestProcessors() {
+            return requestProcessors;
     }
 }

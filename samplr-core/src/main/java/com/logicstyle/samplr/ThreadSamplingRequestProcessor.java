@@ -8,9 +8,7 @@ import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import org.netbeans.lib.profiler.common.ProfilingSettingsPresets;
 import org.netbeans.lib.profiler.results.cpu.CPUResultsSnapshot;
@@ -29,9 +27,6 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
     private Map<RequestContext, SamplingRequestContext> samplingRequests;
     private Map<Long, StackTraceSnapshotBuilder> snapshotBuilders;
     ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
-    
-    
-    
     private long requestLengthSamplingThreshold;
 
     public long getRequestLengthSamplingThreshold() {
@@ -42,12 +37,6 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
         this.requestLengthSamplingThreshold = requestLengthSamplingThreshold;
     }
 
-    
-   
-    
-    
-    
-    
     public ThreadSamplingRequestProcessor withRequestLengthSamplingThreshold(long requestLengthThreshold) {
         setRequestLengthSamplingThreshold(requestLengthThreshold);
         return this;
@@ -145,9 +134,13 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
         if (samplingContext == null) {
             return; // not monitoring this request
         }
+        
+        List<ResultFile> resultList=Collections.EMPTY_LIST;
+        
 
-        if (samplingContext.isSampling()) {
-            try {
+        try {
+            if (samplingContext.isSampling()) {
+
                 samplingRequests.remove(context);
                 samplingContext.setSampleEndTime(System.currentTimeMillis());
                 StackTraceSnapshotBuilder snapshotBuilder = snapshotBuilders.get(context.getRequest().getThreadId());
@@ -180,18 +173,24 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
                 infoFile.setName("sampling-info.txt");
                 infoFile.setContent(new ByteArrayInputStream(bout.toByteArray()));
 
-                context.measurementFinished(context.getRequest(), this, Arrays.asList(new ResultFile[]{samplingFile, infoFile}));
-
-
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
+                resultList= Arrays.asList(new ResultFile[]{samplingFile, infoFile});
+                
             }
 
-
-
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+        finally {
+            context.measurementFinished(context.getRequest(), this,resultList);
+            ongoingRequests.remove(context);
         }
 
-        ongoingRequests.remove(context);
+
+
+
+
+
+        
 
 
 
@@ -215,8 +214,8 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
                     checkShouldSample(r);
 
                 }
-               
-                
+
+
                 try {
                     Thread.sleep(monitoringInterval);
                 } catch (InterruptedException ex) {
@@ -224,12 +223,9 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
 
             }
         }
-
-       
     }
     private SamplrMonitorThread samplrMonitorThread;
     private long monitoringInterval = 500;
-    
 
     private void startMonitoring(RequestContext request) {
 
@@ -253,10 +249,6 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
 
 
     }
-    
-    
-     
-     
     private long samplingInterval = 20;
 
     class SamplingThread extends Thread {
@@ -303,15 +295,17 @@ public class ThreadSamplingRequestProcessor extends RequestProcessor<ThreadSampl
                         }
                     }
                 }
-                if(i==0)
+                if (i == 0) {
                     continue;
-                
-                if(i<threadIds.length) {
+                }
+
+                if (i < threadIds.length) {
                     // Unlikely, but thread can have been terminated between size() and values()
-                    long[] tmp=threadIds;
-                    threadIds=new long[i];
-                    for(int j=0;j<i;j++)
-                        threadIds[j]=tmp[i];
+                    long[] tmp = threadIds;
+                    threadIds = new long[i];
+                    for (int j = 0; j < i; j++) {
+                        threadIds[j] = tmp[i];
+                    }
                 }
 
 
