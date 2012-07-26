@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+ <modelVersion>4.0.0</modelVersion>
+ <groupId>com.logicstyle</groupId>
+ <artifactId>samplr</artifactId>
+ <version>1.0-SNAPSHOT</version>
+ <name>Samplr performance monitor</name>
+ <packaging>pom</packaging>
+ <url>https://github.com/jjviana/samplr</url>
+
+<pluginRepositories>
+<pluginRepository>
+    <id>mc-release</id>
+    <name>Local Maven repository of releases</name>
+    <url>http://mc-repo.googlecode.com/svn/maven2/releases</url>
+    <snapshots>
+        <enabled>false</enabled>
+    </snapshots>
+    <releases>
+        <enabled>true</enabled>
+    </releases>
+</pluginRepository>
+
+</pluginRepositories>
+<build>
+    <plugins>
+        <plugin>
+            <groupId>com.mycila.maven-license-plugin</groupId>
+            <artifactId>maven-license-plugin</artifactId>
+            <configuration>
+                <header>license.txt</header>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+   <modules>
+    <module>samplr-core</module>
+   </modules>
+</project>
